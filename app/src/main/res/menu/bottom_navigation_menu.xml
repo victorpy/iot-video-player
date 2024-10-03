@@ -1,0 +1,11 @@
+<!-- res/menu/bottom_navigation_menu.xml -->
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/nav_home"
+        android:icon="@drawable/icons8_home_24"
+        android:title="Home" />
+    <item
+        android:id="@+id/nav_playlist"
+        android:icon="@drawable/icons8_playlist_24"
+        android:title="Playlist" />
+</menu>

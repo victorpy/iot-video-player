@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">IOT Video Player</string>
+    <string name="prev">Prev</string>
+    <string name="play">Play</string>
+    <string name="stop">Stop</string>
+    <string name="next">Next</string>
+    <string name="play_pause">play pause</string>
+</resources>
