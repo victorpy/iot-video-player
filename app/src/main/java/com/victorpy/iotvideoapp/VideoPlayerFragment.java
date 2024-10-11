@@ -171,6 +171,7 @@ public class VideoPlayerFragment extends Fragment {
     private void setupButtonListeners() {
 
         playPauseButton.setOnClickListener(v -> {
+            Log.d(TAG, "Play/Pause button click listener");
             if (mediaPlaybackService != null) {
                 if (mediaPlaybackService.getExoPlayer().isPlaying()) {
                     Log.d(TAG,"is Playing, will be paused");
@@ -193,6 +194,7 @@ public class VideoPlayerFragment extends Fragment {
                             // Fetch the current video URL and play it via MediaPlaybackService
                             Video currentVideo = videoViewModel.getCurrentVideo(); // Use the VideoViewModel to get the current video
                             if (currentVideo != null) {
+                                Log.d(TAG, "Fetch the current video URL and play it via MediaPlaybackService");
                                 mediaPlaybackService.fetchAndPlayVideo(currentVideo);
                             }
                         }
@@ -240,11 +242,13 @@ public class VideoPlayerFragment extends Fragment {
                 if(fromForeground){
                     fromForeground = false;
                     Log.d(TAG, "Coming from foreground, I won't do anything with the player");
-                } else if(!mediaPlaybackService.getExoPlayer().isPlaying() || playNext || playPrev
-                   || (prevPosition != index)) {
+                }else if(mediaPlaybackService.getExoPlayer().isPlaying() && (playNext || playPrev || index != prevPosition)) {
                     playNext = false;
                     playPrev = false;
-                    Log.d(TAG, "PLAY VIDEO!");
+                    Log.d(TAG, "PLAY VIDEO! next or prev click");
+                    playVideo(index);
+                }else if(!mediaPlaybackService.getExoPlayer().isPlaying() ) {
+                    Log.d(TAG, "PLAY VIDEO! video not playing");
                     playVideo(index); // Only call playVideo if the index is valid
                 } else {
                     Log.d(TAG, "VideoViewModel getCurrentVideoIndex observer player is playing");
@@ -307,16 +311,18 @@ public class VideoPlayerFragment extends Fragment {
     };
 
     private void playVideo(Integer index) {
-        if (index == null || videoViewModel.getVideoList().getValue() == null) {
+        ArrayList<Video> videoList = videoViewModel.getVideoList().getValue();
+
+        if (index == null || videoList == null) {
             return;
         }
 
-        ArrayList<Video> videoList = videoViewModel.getVideoList().getValue();
         if (index >= 0 && index < videoList.size()) {
             Video video = videoList.get(index);
             // Delegate the task to MediaPlaybackService
             if (mediaPlaybackService != null) {
                 // Delegate to service to handle video playback
+                Log.d(TAG, "fetch and play video will be called");
                 mediaPlaybackService.fetchAndPlayVideo(video);
                 mediaPlaybackService.setCurrentIndex(index);
             } else {

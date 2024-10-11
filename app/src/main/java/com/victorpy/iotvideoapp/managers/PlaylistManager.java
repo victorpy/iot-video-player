@@ -60,7 +60,7 @@ public class PlaylistManager {
     }
 
     public int nextVideo() {
-        Log.d(TAG, "next video, current index: "+currentVideoIndex);
+        Log.d(TAG, "In next video, current index: "+currentVideoIndex.getValue());
         Integer currentIndex = currentVideoIndex.getValue();
         ArrayList<Video> videos = videoList.getValue();
         assert videos != null;
@@ -69,9 +69,12 @@ public class PlaylistManager {
 
         if(currentIndex < videos.size() - 1) {
             currentIndex++;
+            Log.d(TAG, "nextVideo new index: "+currentIndex);
             setCurrentVideoIndex(currentIndex);
         } else {
-            Log.d(TAG, "nextVideo Current index: "+currentIndex);
+            Log.d(TAG, "Index bigger than video list size, set index to 0");
+            setCurrentVideoIndex(0);
+            currentIndex = 0;
         }
         return currentIndex;
     }
