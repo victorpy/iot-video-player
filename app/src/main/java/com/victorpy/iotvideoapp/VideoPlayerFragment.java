@@ -189,7 +189,7 @@ public class VideoPlayerFragment extends Fragment {
                         String savedUrl = videoViewModel.getCurrentVideoUrl().getValue();
                         if (savedUrl != null) {
                             // If we have the URL, play it directly from the beginning
-                            mediaPlaybackService.playMedia(savedUrl);
+                            mediaPlaybackService.playMedia(savedUrl, "NO TITLE FOR NOW");
                         } else {
                             // Fetch the current video URL and play it via MediaPlaybackService
                             Video currentVideo = videoViewModel.getCurrentVideo(); // Use the VideoViewModel to get the current video

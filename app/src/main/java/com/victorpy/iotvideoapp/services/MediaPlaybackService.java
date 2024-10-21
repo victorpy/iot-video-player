@@ -12,6 +12,8 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
+import android.media.session.MediaSession;
+import android.media.session.PlaybackState;
 import android.os.Binder;
 import android.os.Build;
 import android.os.Handler;
@@ -19,11 +21,13 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.util.Log;
 
+import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
 import com.google.android.exoplayer2.ExoPlayer;
 import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.Player;
+import com.google.android.exoplayer2.MediaMetadata;
 import com.victorpy.iotvideoapp.MainActivity;
 import com.victorpy.iotvideoapp.R;
 import com.victorpy.iotvideoapp.managers.ExoPlayerManager;
@@ -34,6 +38,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.Objects;
+import android.media.MediaMetadata.Builder;
 
 public class MediaPlaybackService extends Service {
 
@@ -54,6 +59,7 @@ public class MediaPlaybackService extends Service {
     private static boolean isServiceRunning = false;
     private AudioManager audioManager;
     private AudioFocusRequest audioFocusRequest;
+    private MediaSession mediaSession;
 
 
     public void setCurrentIndex(int currentIndex) {
@@ -79,6 +85,7 @@ public class MediaPlaybackService extends Service {
         // Initialize ExoPlayer
         exoPlayer = ExoPlayerManager.getInstance(getApplicationContext()).getPlayer(); // Ensure single instance
         initAudioFocus(); // Initialize AudioManager and AudioFocusRequest
+        initializeMediaSession(exoPlayer);
 
         // Set up listener to detect when a track finishes playing
         exoPlayer.addListener(new Player.Listener() {
@@ -106,6 +113,14 @@ public class MediaPlaybackService extends Service {
                         break;
                 }
             }
+
+            @Override
+            public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
+                if (mediaItem != null) {
+                    // Update metadata when the media item changes
+                    updateMetadata(mediaItem);
+                }
+            }
         });
 
         IntentFilter filter = new IntentFilter(Intent.ACTION_HEADSET_PLUG);
@@ -116,6 +131,60 @@ public class MediaPlaybackService extends Service {
 
         Log.d(TAG, "Initialized");
 
+    }
+
+    private void initializeMediaSession(ExoPlayer exoPlayer){
+        // Initialize MediaSession
+        mediaSession = new MediaSession(this, "MediaPlaybackService");
+        mediaSession.setActive(true);
+
+        // Set the callback to receive media control actions
+        mediaSession.setCallback(new MediaSession.Callback() {
+            @Override
+            public void onPlay() {
+                exoPlayer.play();
+                updatePlaybackState(PlaybackState.STATE_PLAYING);
+            }
+
+            @Override
+            public void onPause() {
+                exoPlayer.pause();
+                updatePlaybackState(PlaybackState.STATE_PAUSED);
+            }
+
+            @Override
+            public void onStop() {
+                exoPlayer.stop();
+                updatePlaybackState(PlaybackState.STATE_STOPPED);
+            }
+        });
+    }
+
+    private void updatePlaybackState(int state) {
+        PlaybackState.Builder playbackStateBuilder = new PlaybackState.Builder();
+        playbackStateBuilder.setState(state, exoPlayer.getCurrentPosition(), 1.0f);
+        mediaSession.setPlaybackState(playbackStateBuilder.build());
+    }
+
+    private void updateMetadata(MediaItem mediaItem) {
+
+        if (mediaItem == null) {
+            Log.e(TAG, "MediaItem or MediaMetadata is null, cannot update metadata");
+            return;
+        }
+
+        // Get the ExoPlayer MediaMetadata
+        com.google.android.exoplayer2.MediaMetadata exoMetadata = mediaItem.mediaMetadata;
+
+        // Create a new Android MediaMetadata.Builder to update metadata
+        android.media.MediaMetadata.Builder metadataBuilder = new android.media.MediaMetadata.Builder();
+
+        // Set the title if it's available
+        if (exoMetadata.title != null) {
+            metadataBuilder.putString(android.media.MediaMetadata.METADATA_KEY_TITLE, exoMetadata.title.toString());
+        }
+
+        mediaSession.setMetadata(metadataBuilder.build());
     }
 
     public static boolean isServiceRunning() {
@@ -200,7 +269,7 @@ public class MediaPlaybackService extends Service {
         audioManager.abandonAudioFocusRequest(audioFocusRequest);
     }
 
-    private BroadcastReceiver headphoneReceiver = new BroadcastReceiver() {
+    private final BroadcastReceiver headphoneReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             if (Objects.equals(intent.getAction(), Intent.ACTION_HEADSET_PLUG)) {
@@ -322,6 +391,7 @@ public class MediaPlaybackService extends Service {
                         Log.d(TAG, "Response body fetchAndPlayVideo: "+videoDetails);
                         // Extract the playable URL from the JSON response
                         JSONObject encodingsInfo = videoDetails.getJSONObject("encodings_info");
+                        String title = videoDetails.getString("title");
                         JSONObject encoding360 = encodingsInfo.getJSONObject("360");
                         JSONObject h264 = encoding360.getJSONObject("h264");
                         String videoUrl = h264.getString("url");
@@ -329,7 +399,7 @@ public class MediaPlaybackService extends Service {
                         // Play the video
                         String fullUrl = apiService.buildFullUrl(videoUrl);
                         Log.d(TAG, "Media URL: " + fullUrl);
-                        playMedia(fullUrl);
+                        playMedia(fullUrl, title);
                     } catch (JSONException e) {
                         Log.e("VideoPlayerFragment", "Failed to parse video details", e);
                     }
@@ -374,13 +444,20 @@ public class MediaPlaybackService extends Service {
         }
     }
 
-    public void playMedia(String url) {
+    public void playMedia(String url,String title) {
         if (mainHandler == null ) {
             mainHandler = new Handler(Looper.getMainLooper());
         }
         mainHandler.post(() -> {
             if (requestAudioFocus()) {
-                MediaItem mediaItem = MediaItem.fromUri(url);
+                Log.d(TAG, "for metadata builder - Title: "+title);
+                MediaMetadata.Builder metadataBuilder = new MediaMetadata.Builder()
+                        .setTitle(title);
+
+                //MediaItem.fromUri(url);
+                MediaItem mediaItem = new MediaItem.Builder()
+                        .setUri(url)
+                        .setMediaMetadata(metadataBuilder.build()).build();
                 exoPlayer.setMediaItem(mediaItem);
                 exoPlayer.prepare();
                 exoPlayer.play();
@@ -425,6 +502,9 @@ public class MediaPlaybackService extends Service {
         releaseAudioFocus();
         if (exoPlayer != null) {
             exoPlayer.release();
+        }
+        if (mediaSession != null) {
+            mediaSession.release();
         }
         unregisterReceiver(headphoneReceiver);
         // Stop foreground service and remove notification
